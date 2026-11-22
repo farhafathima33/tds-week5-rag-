@@ -300,6 +300,7 @@ def retrieve(question, top_k):
 # 7. FACTUAL ANSWER EXTRACTION
 # ============================================================
 
+
 def extract_answer(question, results):
 
     q_tokens = tokenize(question)
@@ -309,7 +310,18 @@ def extract_answer(question, results):
 
     for result in results:
 
-        for sentence in sentence_split(result["passage"]):
+        sentences = sentence_split(result["passage"])
+
+        # Check whether the retrieved passage contains
+        # the technical concept mentioned in the question.
+        passage_lower = result["passage"].lower()
+
+        if anchors and not any(
+            anchor in passage_lower for anchor in anchors
+        ):
+            continue
+
+        for sentence in sentences:
 
             s_tokens = tokenize(sentence)
 
@@ -324,20 +336,10 @@ def extract_answer(question, results):
             coverage = len(overlap) / len(q_tokens)
             precision = len(overlap) / len(s_tokens)
 
-            # Prefer sentences that directly support the question.
             relevance = (
                 0.75 * coverage +
                 0.25 * precision
             )
-
-            # Require explicit concept evidence when a named
-            # technical concept appears in the question.
-            if anchors:
-                if not any(
-                    anchor in sentence.lower()
-                    for anchor in anchors
-                ):
-                    continue
 
             if relevance >= 0.12:
                 sentence_results.append({
@@ -355,7 +357,6 @@ def extract_answer(question, results):
     if not sentence_results:
         return None, []
 
-    # Keep at most three distinct evidence sentences.
     selected = []
     seen = set()
 
@@ -369,7 +370,6 @@ def extract_answer(question, results):
         if len(selected) == 3:
             break
 
-    # A weak lexical match is not enough to answer.
     if selected[0]["coverage"] < 0.15:
         return None, []
 
@@ -382,6 +382,7 @@ def extract_answer(question, results):
     ))
 
     return answer, source_ids
+
 
 
 # ============================================================
